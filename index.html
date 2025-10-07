@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Rentabilité du Beer's Chope</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#e11d48">
+<style>
+  :root{--red:#e11d48;--blue:#2563eb;--black:#0b0b0f;--violet:#8b5cf6;--green:#10b981}
+  body{margin:0;background:#f3f4f6;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial}
+  .wrap{max-width:1080px;margin:0 auto;padding:24px}
+  .h1{font-size:24px;font-weight:700;margin:0 0 12px;color:var(--red)}
+  .card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;box-shadow:0 2px 6px rgba(0,0,0,.04);padding:16px;margin:0 0 16px}
+  .grid{display:grid;gap:12px}
+  .g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+  label{display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center}
+  input[type=number],input[type=text]{width:100%;padding:10px;border:1px solid #d1d5db;border-radius:8px}
+  .badge{color:#fff;padding:12px;border-radius:12px;margin:0 0 16px;font-weight:600;text-align:center}
+  .badge.red{background:var(--red)}
+  .badge.green{background:var(--green)}
+  .right{text-align:right}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{padding:8px;border-bottom:1px solid #e5e7eb}
+  th{background:#f9fafb;text-align:left}
+  .small{font-size:12px;color:#6b7280}
+  .bold{font-weight:600}
+  .footer{font-size:12px;color:#6b7280;text-align:right;margin-top:16px}
+  .target-status-ok{color:var(--green)}
+  .target-status-ko{color:var(--red)}
+  .label-group{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="h1">Rentabilité du Beer's Chope</div>
+  <div id="goal" class="badge"></div>
+
+  <div class="card">
+    <div class="bold">Paramètres Commerciaux & TVA</div>
+    <div class="grid g2" style="margin-top:12px;">
+      <label><span>Jours ouverts / mois</span><input id="daysPerMonth" type="number" value="24"></label>
+      <label><span>Ticket moyen (€)</span><input id="ticket" type="number" value="25"></label>
+      <label><span>TVA alcool (%)</span><input id="vat20" type="number" value="20"></label>
+      <label><span>TVA softs / food (%)</span><input id="vat10" type="number" value="10"></label>
+    </div>
+    <label style="margin-top: 12px;"><span>Mix Alcool (% CA)</span><input id="mixAlcool" type="number" value="75"></label>
+  </div>
+
+  <div class="card">
+    <div class="bold">Coûts Variables (en % du CA HT)</div>
+    <div class="grid g3" style="margin-top:12px;">
+      <label><span>CMV (%)</span><input id="cmv" type="number" value="33"></label>
+      <label><span>Consommables (%)</span><input id="cons" type="number" value="1"></label>
+      <label><span>Autres variables (%)</span><input id="other" type="number" value="1"></label>
+    </div>
+    <div class="small" id="varTotal"></div>
+  </div>
+
+  <div class="card">
+    <div class="bold">Charges Fixes Mensuelles (€)</div>
+    <div class="grid g3" style="margin-top:12px;">
+      <label><span>Fixes mensuels</span><input id="fixed" type="number" value="5000"></label>
+      <label><span>Masse salariale mensuelle</span><input id="salaries" type="number" value="8000"></label>
+      <label><span>Amortissements / mois</span><input id="amort" type="number" value="500"></label>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="grid g3" style="align-items:end">
+      <label><span>CA du jour (TTC)</span><input id="daily" type="number" value="0"></label>
+      <div class="small">Objectif CA TTC : <span id="dailyTarget" class="bold"></span></div>
+      <div class="right bold" id="dailyStatus"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="grid g3">
+      <div>
+        <div class="bold">Seuil de Rentabilité</div>
+        <div>Mensuel HT : <span id="sMens"></span></div>
+        <div>Annuel HT : <span id="sAnn"></span></div>
+        <div class="small" style="margin-top:8px;">Clients / jour : <span id="sClients" class="bold"></span></div>
+      </div>
+      <div>
+        <div class="bold">Charges Mensuelles</div>
+        <div>Fixes : <span id="cFix"></span></div>
+        <div>Salaires : <span id="cSal"></span></div>
+        <div>Amort. : <span id="cAmo"></span></div>
+      </div>
+      <div>
+        <div class="bold">TVA (Est. au SR mensuel)</div>
+        <div>Collectée : <span id="tvaCol"></span></div>
+        <div>Déductible : <span id="tvaDed"></span></div>
+        <div class="bold">À payer : <span id="tvaPay"></span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">v1.1 — Octobre 2025</div>
+</div>
+
+<script>
+const € = n => isFinite(n)? n.toLocaleString('fr-FR',{style:'currency',currency:'EUR'}): '—';
+const pct = n => isFinite(n)? (n*100).toFixed(2)+' %':'—';
+function get(id){ return document.getElementById(id); }
+function num(v){ const n = Number(v); return isFinite(n)? n:(v >= 1 ? n/100:0); }
+function numPct(v){ const n = Number(v); return isFinite(n)? (n>=1 ? n/100 : n) : 0; }
+
+function compute(){
+  // 1. Récupération des données
+  const days = num(get('daysPerMonth').value)||24;
+  const ticket = num(get('ticket').value)||25;
+  const vat20 = numPct(get('vat20').value)||0.20;
+  const vat10 = numPct(get('vat10').value)||0.10;
+  const mixAlcool = numPct(get('mixAlcool').value)||0.75;
+
+  const cmv = numPct(get('cmv').value)||0;
+  const cons = numPct(get('cons').value)||0;
+  const other = numPct(get('other').value)||0;
+
+  const fixed = num(get('fixed').value)||0;
+  const salaries = num(get('salaries').value)||0;
+  const amort = num(get('amort').value)||0;
+  
+  const todayTTC = num(get('daily').value)||0;
+
+  // 2. Calcul des coûts et de la marge
+  const varTotal = Math.max(0, Math.min(0.95, cmv+cons+other));
+  const charges = fixed + salaries + amort;
+  const tmcv = 1 - varTotal;
+  
+  // 3. Calcul du Seuil de Rentabilité (SR)
+  const seuilMensuelHT = tmcv > 0 ? charges / tmcv : 0;
+  const seuilJournalierHT = days > 0 ? seuilMensuelHT / days : 0;
+  const seuilAnnuelHT = seuilMensuelHT * 12;
+
+  // 4. Calcul de la TVA moyenne et du SR TTC
+  const vatMoyen = (vat20 * mixAlcool) + (vat10 * (1 - mixAlcool));
+  const seuilJournalierTTC = seuilJournalierHT * (1 + vatMoyen);
+
+  // 5. Calcul des indicateurs de performance
+  const clientsObjectif = ticket > 0 ? Math.ceil(seuilJournalierTTC / ticket) : 0;
+
+  // 6. Affichage des résultats
+  get('varTotal').textContent = `Total variables : ${pct(varTotal)} (Taux de Marge: ${pct(tmcv)})`;
+  get('cFix').textContent = €(fixed);
+  get('cSal').textContent = €(salaries);
+  get('cAmo').textContent = €(amort);
+  get('sMens').textContent = €(seuilMensuelHT);
+  get('sAnn').textContent = €(seuilAnnuelHT);
+  get('sClients').textContent = clientsObjectif.toLocaleString('fr-FR');
+  get('dailyTarget').textContent = €(seuilJournalierTTC);
+  get('goal').textContent = `Objectif du jour : ${€(seuilJournalierTTC)} TTC (${clientsObjectif} clients)`;
+  
+  const isRentable = todayTTC >= seuilJournalierTTC;
+  get('dailyStatus').textContent = isRentable ? '✅ Journée rentable' : '❌ En dessous du seuil';
+  get('dailyStatus').className = isRentable ? 'right bold target-status-ok' : 'right bold target-status-ko';
+
+  // 7. Estimation de la TVA
+  const caMensuelSeuilHT = seuilMensuelHT;
+  const tvaCollecteeEst = (caMensuelSeuilHT * mixAlcool * vat20) + (caMensuelSeuilHT * (1 - mixAlcool) * vat10);
+  const tvaDedCMV = caMensuelSeuilHT * cmv * vat20; 
+  const tvaDedFixes = fixed * 0.10; 
+  const tvaDeductibleEst = tvaDedCMV + tvaDedFixes;
+  const tvaAPayer = tvaCollecteeEst - tvaDeductibleEst;
+
+  get('tvaCol').textContent = €(tvaCollecteeEst);
+  get('tvaDed').textContent = €(tvaDeductibleEst);
+  get('tvaPay').textContent = €(tvaAPayer);
+
+    // 8. Enregistrement du Service Worker (pour la PWA)
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js').then(registration => {
+                console.log('Service Worker enregistré avec succès:', registration);
+            }).catch(error => {
+                console.log('Échec de l\'enregistrement du Service Worker:', error);
+            });
+        });
+    }
+}
+
+['daysPerMonth','ticket','cmv','cons','other','fixed','salaries','amort','daily','vat20','vat10','mixAlcool'].forEach(id => get(id).addEventListener('input', compute));
+compute();
+</script>
+</body>
+</html>
